@@ -74,4 +74,5 @@ public class Workspace {
 	public static InputStream getConsoleIn() {
 		return consoleIn;
 	}
+
 }

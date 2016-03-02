@@ -20,7 +20,7 @@ public abstract class NodeCreator implements Comparable<NodeCreator> {
 		return this.fullPath;
 	}
 
-	public abstract NCNode create();
+	public abstract NCNode create() throws InstantiationException;
 	public abstract NodeDescription getDescription();
 
 	@Override

@@ -55,6 +55,10 @@ public abstract class NCNode extends Node {
 		return this.name;
 	}
 
+	public void setName(String name) {
+		this.name = name;
+	}
+	
 	/**
 	 * Returns the {@link NCHighlightInfo} with its {@link NodeInputInterface}.
 	 * 
@@ -117,7 +121,7 @@ public abstract class NCNode extends Node {
 	 * 
 	 * @return
 	 */
-	public NCHighlightInfo<? extends NodeInterface> getNCExceptionOutput() {
+	public NCHighlightInfo<SignalOutputInterface> getNCExceptionOutput() {
 		return this.ncsigex;
 	}
 
@@ -200,6 +204,8 @@ public abstract class NCNode extends Node {
 			return true;
 		} else if (this.ncsigout.getReal() == i) {
 			return true;
+		} else if (this.ncsigex.getReal() == i) {
+			return true;
 		}
 
 		if (i instanceof NodeInputInterface) {
@@ -254,4 +260,8 @@ public abstract class NCNode extends Node {
 		return this.getCreator().getPath() + "[ID=" + this.NODEID + "]";
 	}
 
+	public long getID() {
+		return this.NODEID;
+	}
+	
 }

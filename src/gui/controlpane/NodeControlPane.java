@@ -10,6 +10,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 import nodecode.NodeDescription;
+import nodecode.NodeDescription.Dependency;
 import nodecode.node.NCNode;
 import nodes.NodeInputInterface;
 import nodes.NodeOutputInterface;
@@ -43,7 +44,7 @@ public class NodeControlPane extends JPanel {
 		p_description.add(new JLabel("Author: " + desc.getAuthor()));
 		p_description.add(new JLabel("Path: " + this.n.getCreator().getPath()));
 		p_description.add(new JLabel("Description: " + desc.getDescription()));
-		String[] dependencies = desc.getDependencies();
+		Dependency[] dependencies = desc.getDependencies();
 		p_description.add(
 				new JLabel("Dependencies: " + (dependencies.length == 0 ? "None" : Arrays.toString(dependencies))));
 

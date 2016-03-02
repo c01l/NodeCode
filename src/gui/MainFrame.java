@@ -3,6 +3,7 @@ package gui;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
@@ -24,33 +25,50 @@ import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 import javax.swing.JSplitPane;
+import javax.swing.JTextField;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 
 import gui.controlpane.ControlPane;
+import gui.dialogs.SaveDialog;
+import nodecode.EdgePainter;
+import nodecode.NodeDescription;
+import nodecode.NodeDescription.Author;
+import nodecode.NodeDescription.Dependency;
 import nodecode.Workspace;
 import nodecode.compositor.CompositorDrawer;
 import nodecode.compositor.NCCompositor;
+import nodecode.compositor.NCCompositorCreator;
 import nodecode.creator.HirachicalNodeCreatorFinder;
 import nodecode.creator.NodeCreator;
 import nodecode.drawer.NodeDrawer;
 import nodecode.drawer.ObjectDrawer;
 import nodecode.drawer.Positionable;
+import nodecode.io.ConsoleIn;
+import nodecode.io.ConsoleOut;
+import nodecode.loader.CompositorLoader;
+import nodecode.loader.LoaderException;
+import nodecode.math.IntegerAddition;
+import nodecode.math.IntegerParser;
 import nodecode.node.Highlightable;
+import nodecode.node.NCHighlightInfo;
 import nodecode.node.NCNode;
 import nodecode.signals.NCSyncronizer;
 import nodecode.signals.SyncronizerDrawer;
-import nodes.Node;
+import nodes.NodeInputInterface;
+import nodes.NodeInterface;
+import nodes.NodeOutputInterface;
+import nodes.compositor.CompositorFinishedCallback;
 import nodes.signals.Signal;
 import nodes.signals.SignalInputInterface;
 import nodes.signals.SignalOutputInterface;
-import test.NumberAdderNode;
-import test.NumberInputNode;
-import test.NumberOutputNode;
 
 public class MainFrame extends JFrame {
 
@@ -70,11 +88,14 @@ public class MainFrame extends JFrame {
 	private CurrentCompositorDrawer drawingPane;
 	private ControlPane controlPane;
 	private JSplitPane splitPane;
+	private JFrame self;
+
 	// menu
 	private JCheckBoxMenuItem mi_view_showData, mi_view_showSignals;
 
 	public MainFrame() {
 		super("NodeCode");
+		this.self = this;
 		this.setTitle(generateTitle());
 		this.setSize(1024, 600);
 		this.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -96,6 +117,19 @@ public class MainFrame extends JFrame {
 		this.recentNodes = new TreeSet<>();
 
 		this.comp = new NCCompositor("", "");
+		this.comp.setEndCallback(new CompositorFinishedCallback() {
+			@Override
+			public void compositorRaisedAnException() {
+				JOptionPane.showMessageDialog(self, "Comopsitor finished with an exception!", "Compositor Information",
+						JOptionPane.ERROR_MESSAGE);
+			}
+
+			@Override
+			public void compositorFinished() {
+				JOptionPane.showMessageDialog(self, "Comopsitor finished!", "Compositor Information",
+						JOptionPane.INFORMATION_MESSAGE);
+			}
+		});
 		this.drawingPane = new CurrentCompositorDrawer(this.comp.getDrawerInstance());
 
 		this.systemNodeCreator = new HirachicalNodeCreatorFinder();
@@ -121,38 +155,19 @@ public class MainFrame extends JFrame {
 
 		/* TESTING CODE START */
 
-		NumberInputNode in1 = new NumberInputNode();
-		NumberInputNode in2 = new NumberInputNode();
+		ConsoleIn in1 = new ConsoleIn();
 
-		NumberAdderNode adder = new NumberAdderNode();
+		IntegerParser p1 = new IntegerParser();
+		IntegerParser p2 = new IntegerParser();
 
-		NumberOutputNode out = new NumberOutputNode();
+		IntegerAddition adder = new IntegerAddition();
+		ConsoleOut out = new ConsoleOut();
 
 		this.comp.addNode(adder);
 		this.comp.addNode(in1);
-		this.comp.addNode(in2);
 		this.comp.addNode(out);
-
-		System.out.println("Added Nodes");
-
-		this.comp.addEdge(in1, "Output", adder, "Input 1");
-		this.comp.addEdge(in2, "Output", adder, "Input 2");
-
-		System.out.println("1");
-
-		this.comp.addSyncronizer(Signal.sync(new Node[] { in1, in2 }, new Node[] { adder }));
-
-		System.out.println("2");
-
-		this.comp.addSyncronizer(Signal.sync(new SignalOutputInterface[] { this.comp.getNCSignalStart().getReal() },
-				new SignalInputInterface[] { in1.getSignalInput(), in2.getSignalInput() }));
-
-		System.out.println("Do signals");
-
-		Signal.route(adder, out);
-		Signal.route(out.getSignalOutput(), this.comp.getNCSignalEnd().getReal());
-
-		this.comp.addEdge(adder, "Output", out, "Input");
+		this.comp.addNode(p1);
+		this.comp.addNode(p2);
 
 		/* TESTING CODE END */
 
@@ -193,7 +208,7 @@ public class MainFrame extends JFrame {
 		mi_file_save.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				// TODO save project
+				save();
 			}
 		});
 
@@ -204,7 +219,7 @@ public class MainFrame extends JFrame {
 		mi_file_save_as.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				// TODO save project
+				saveas();
 			}
 		});
 
@@ -303,6 +318,8 @@ public class MainFrame extends JFrame {
 			}
 		});
 
+		m_compositor.addSeparator();
+
 		JMenuItem mi_compositor_search = new JMenuItem("Search Node");
 		m_compositor.add(mi_compositor_search);
 		mi_compositor_search.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, InputEvent.CTRL_DOWN_MASK));
@@ -312,6 +329,41 @@ public class MainFrame extends JFrame {
 				SearchNodeCreator snc = new SearchNodeCreator(systemNodeCreator, comp);
 				snc.setAutoRequestFocus(true);
 				snc.setVisible(true);
+			}
+		});
+
+		JMenuItem mi_compositor_addsyncronizer = new JMenuItem("Add Syncronizer");
+		m_compositor.add(mi_compositor_addsyncronizer);
+		mi_compositor_addsyncronizer.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.ALT_DOWN_MASK));
+		mi_compositor_addsyncronizer.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent ev) {
+				JPanel p_diag_main = new JPanel(new GridLayout(2, 2));
+
+				JLabel l_diag_ins = new JLabel("Inputs: ");
+				p_diag_main.add(l_diag_ins);
+				JTextField tf_diag_ins = new JTextField(2);
+				p_diag_main.add(tf_diag_ins);
+				JLabel l_diag_outs = new JLabel("Outputs: ");
+				p_diag_main.add(l_diag_outs);
+				JTextField tf_diag_outs = new JTextField(2);
+				p_diag_main.add(tf_diag_outs);
+
+				int ret = JOptionPane.showConfirmDialog(self, p_diag_main, "New Snycronizer",
+						JOptionPane.OK_CANCEL_OPTION);
+				if (ret == JOptionPane.OK_OPTION) {
+					try {
+						int ins = Integer.parseInt(tf_diag_ins.getText());
+						int outs = Integer.parseInt(tf_diag_outs.getText());
+
+						comp.addSyncronizer(new NCSyncronizer(ins, outs));
+					} catch (NumberFormatException e) {
+						JOptionPane.showMessageDialog(self,
+								"Failed to create Syncronizer.\n\nNumberFormatException: " + e.getMessage(), "Error",
+								JOptionPane.ERROR_MESSAGE);
+					}
+				}
+
 			}
 		});
 
@@ -386,6 +438,46 @@ public class MainFrame extends JFrame {
 		return true;
 	}
 
+	private void saveas() {
+
+		SaveDialog diag = new SaveDialog();
+
+		int ret = JOptionPane.showConfirmDialog(self, diag, "Save As...", JOptionPane.OK_CANCEL_OPTION);
+		if (ret == JOptionPane.OK_OPTION) {
+
+			// TODO change default author
+			// TODO dependencies auto detection
+			NodeDescription desc = new NodeDescription(new Author(0, "coil"), new Dependency[0], diag.getDescription());
+
+			this.comp.setName(diag.getNodeName());
+			this.comp.setDescription(desc);
+
+			this.currentFile = new File(diag.getPath());
+
+			save();
+		}
+
+	}
+
+	private void save() {
+		if (this.currentFile == null) {
+			saveas();
+			return;
+		}
+
+		// TODO update dependencies
+
+		NCCompositorCreator creator = comp.getCreator();
+		CompositorLoader loader = new CompositorLoader();
+
+		try {
+			loader.saveNodeCreator(creator, this.currentFile);
+		} catch (LoaderException e1) {
+			JOptionPane.showMessageDialog(self, "Failed to save node!\n\n" + e1.getMessage(), "Saving Error",
+					JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
 	private void updateRecentList() {
 		this.m_recent_nodes.removeAll();
 
@@ -403,6 +495,52 @@ public class MainFrame extends JFrame {
 
 	}
 
+	private void tryToMakeEdge(NodeInterface start, NodeInterface end) {
+
+		if (start.equals(end))
+			return;
+
+		Class<?> startType = start.getType();
+		Class<?> endType = end.getType();
+
+		if (startType == Signal.class && startType.equals(endType)) {
+			// Signals
+			if (start instanceof SignalOutputInterface && end instanceof SignalInputInterface) {
+				((SignalOutputInterface) start).setConnection((SignalInputInterface) end);
+				System.out.println("Established connection! (Sig 1)");
+			} else if (end instanceof SignalOutputInterface && start instanceof SignalInputInterface) {
+				((SignalOutputInterface) end).setConnection((SignalInputInterface) start);
+				System.out.println("Established connection! (Sig 2)");
+			} else {
+				// other combination, not possible to make a signal connection
+			}
+		} else if (!startType.equals(Signal.class) && !endType.equals(Signal.class)) {
+			// Data
+			if ((start instanceof NodeOutputInterface) && (end instanceof NodeInputInterface)) {
+				// everything is ok
+			} else if ((end instanceof NodeOutputInterface) && (start instanceof NodeInputInterface)) {
+				// just switch
+				NodeInterface tmp = start;
+				start = end;
+				end = tmp;
+
+				Class<?> tmpClazz = startType;
+				startType = endType;
+				endType = tmpClazz;
+			} else {
+				return; // no connection possible
+			}
+
+			if (endType.isAssignableFrom(startType)) {
+				// possible
+				((NodeInputInterface) end).setConnection((NodeOutputInterface) start);
+			}
+		} else {
+			// "signal with data"-Mix
+		}
+
+	}
+
 	private class RecentlyUsedNodeMenuListener implements ActionListener {
 		private final NodeCreator creator;
 
@@ -411,22 +549,29 @@ public class MainFrame extends JFrame {
 		}
 
 		@Override
-		public void actionPerformed(ActionEvent e) {
-			comp.addNode(this.creator.create());
+		public void actionPerformed(ActionEvent ev) {
+			try {
+				comp.addNode(this.creator.create());
+			} catch (InstantiationException e) {
+				JOptionPane.showMessageDialog(self, "Could not instantiate node.\n\n" + e.getMessage(), "Node Error",
+						JOptionPane.ERROR_MESSAGE);
+			}
 		}
 	}
 
 	private class CurrentCompositorDrawer extends JComponent {
 		private CompositorDrawer drawer;
 		private ObjectDrawer currentElement;
+		private NodeInterface dragStartInterface = null;
+		private CompositorMouseListener mouseHandler;
 
 		public CurrentCompositorDrawer(CompositorDrawer drawer) {
 			this.drawer = drawer;
 
 			this.currentElement = null;
-			MouseAdapter mAdapter = new CompositorMouseListener();
-			this.addMouseListener(mAdapter);
-			this.addMouseMotionListener(mAdapter);
+			this.mouseHandler = new CompositorMouseListener();
+			this.addMouseListener(this.mouseHandler);
+			this.addMouseMotionListener(this.mouseHandler);
 		}
 
 		public void setDrawer(CompositorDrawer drawer) {
@@ -442,7 +587,7 @@ public class MainFrame extends JFrame {
 			if (this.currentElement != null) {
 				this.currentElement.setHighlighted(false);
 				this.currentElement = null;
-				
+
 				controlPane.showNode(null);
 			}
 		}
@@ -455,13 +600,29 @@ public class MainFrame extends JFrame {
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
 			this.drawer.paintContent(g2d);
+
+			if (dragStartInterface != null) {
+				Point p = this.drawer.getInCompositorInterfacePosition(dragStartInterface);
+				Point m = this.mouseHandler.getMouseLocation();
+
+				EdgePainter.paint(g2d, p, m);
+			}
 		}
 
 		private class CompositorMouseListener extends MouseAdapter {
+			private Point lastMousePosition;
 			private boolean nodeDrag = false;
 			private Highlightable lastHighlighted = null;
 
 			private int nodeDragDx, nodeDragDy;
+
+			public CompositorMouseListener() {
+				this.lastMousePosition = new Point(0, 0);
+			}
+
+			public Point getMouseLocation() {
+				return this.lastMousePosition;
+			}
 
 			@Override
 			public void mouseDragged(MouseEvent e) {
@@ -469,14 +630,23 @@ public class MainFrame extends JFrame {
 				if (this.nodeDrag) {
 					if (currentElement instanceof Positionable) {
 						currentElement.setPosition(e.getX() - this.nodeDragDx, e.getY() - this.nodeDragDy);
+						repaint();
 					}
 				}
-				repaint();
+
+				this.mouseMoved(e);
+
+				if (dragStartInterface != null) {
+					repaint();
+				}
 			}
 
 			@Override
 			public void mouseMoved(MouseEvent e) {
-				Highlightable nextHightlighted = drawer.getHighlightable(e.getX(), e.getY());
+				this.lastMousePosition = new Point(e.getX(), e.getY());
+
+				Highlightable nextHightlighted = drawer.getHighlightable(this.lastMousePosition.x,
+						this.lastMousePosition.y);
 
 				if (lastHighlighted != nextHightlighted) {
 					System.out.println("Changed Highlight to: " + nextHightlighted);
@@ -516,9 +686,19 @@ public class MainFrame extends JFrame {
 						return;
 					}
 				}
-				
+
 				// otherwise: remove current element
 				resetCurrentElement();
+
+				if (lastHighlighted != null) {
+					if (lastHighlighted instanceof NCHighlightInfo<?>) {
+						@SuppressWarnings("rawtypes")
+						Object hightlighted = ((NCHighlightInfo) lastHighlighted).getReal();
+						if (hightlighted instanceof NodeInterface) {
+							dragStartInterface = (NodeInterface) hightlighted;
+						}
+					}
+				}
 			}
 
 			private void parseClick(ObjectDrawer o, int mx, int my) {
@@ -541,6 +721,20 @@ public class MainFrame extends JFrame {
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				this.nodeDrag = false;
+
+				if (dragStartInterface != null && lastHighlighted != null) {
+					if (lastHighlighted instanceof NCHighlightInfo<?>) {
+						@SuppressWarnings("rawtypes")
+						Object hightlighted = ((NCHighlightInfo) lastHighlighted).getReal();
+						if (hightlighted instanceof NodeInterface) {
+							NodeInterface end = (NodeInterface) hightlighted;
+
+							tryToMakeEdge(dragStartInterface, end);
+							repaint();
+						}
+					}
+				}
+				dragStartInterface = null;
 			}
 		}
 	}

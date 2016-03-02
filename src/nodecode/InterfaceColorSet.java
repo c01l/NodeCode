@@ -22,11 +22,13 @@ public class InterfaceColorSet {
 
 	private HashMap<Class<?>, Color> colorMap;
 	private Color defaultColor;
-
-	public InterfaceColorSet(Color defaultColor) {
+	private Color highlightColor;
+	
+	public InterfaceColorSet(Color defaultColor, Color highlightColor) {
 		this.colorMap = new HashMap<>();
 
 		this.defaultColor = defaultColor;
+		this.highlightColor = highlightColor;
 	}
 
 	/**
@@ -59,7 +61,7 @@ public class InterfaceColorSet {
 	 * @return
 	 */
 	public static InterfaceColorSet getDefault() {
-		InterfaceColorSet s = new InterfaceColorSet(Color.BLUE); // TODO more?
+		InterfaceColorSet s = new InterfaceColorSet(Color.BLUE, Color.PINK); // TODO more?
 		s.addColorCode(Signal.class, Color.BLACK);
 		return s;
 	}
@@ -73,7 +75,7 @@ public class InterfaceColorSet {
 			bReader = new BufferedReader(fReader);
 
 			HashMap<Class<?>, Color> map = new HashMap<>();
-			Color defaultColor = null;
+			Color defaultColor = null, highlightColor = null;
 
 			String line;
 			while ((line = bReader.readLine()) != null) {
@@ -98,7 +100,19 @@ public class InterfaceColorSet {
 							System.out.println("Set default color to " + defaultColor.toString());
 						}
 					}
+				} else if (line.startsWith("HIGHLIGHT")) {
+					String[] l = line.split("=");
+					String[] rgb = l[1].split(",");
 
+					if (rgb.length != 3 || highlightColor != null) {
+						throw new IOException("Line pattern mismatch");
+					} else {
+						highlightColor = new Color(Integer.parseInt(rgb[0]), Integer.parseInt(rgb[1]),
+								Integer.parseInt(rgb[2]));
+						if (logWhileLoading) {
+							System.out.println("Set highlight color to " + highlightColor.toString());
+						}
+					}
 				} else {
 					int pos = line.indexOf("=");
 					if (pos == -1) {
@@ -136,7 +150,7 @@ public class InterfaceColorSet {
 			}
 
 			// store
-			InterfaceColorSet retSet = new InterfaceColorSet(defaultColor);
+			InterfaceColorSet retSet = new InterfaceColorSet(defaultColor, highlightColor);
 			for (Entry<Class<?>, Color> e : map.entrySet()) {
 				retSet.addColorCode(e.getKey(), e.getValue());
 			}
@@ -154,5 +168,9 @@ public class InterfaceColorSet {
 			}
 		}
 
+	}
+
+	public Color getInterfaceHighlightColor() {
+		return this.highlightColor;
 	}
 }

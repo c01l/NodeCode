@@ -16,6 +16,7 @@ import java.util.TreeSet;
 
 import javax.swing.JFrame;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JTextField;
 import javax.swing.ListModel;
 import javax.swing.event.DocumentEvent;
@@ -172,10 +173,16 @@ public class SearchNodeCreator extends JFrame {
 
 		NodeCreator creator = this.p_list.getSelectedValue().getReal();
 		System.out.println("Using " + creator.getPath());
-		this.compositor.addNode(creator.create());
+		try {
+			this.compositor.addNode(creator.create());
+		} catch (InstantiationException e) {
+			JOptionPane.showMessageDialog(this, "Could not instanciate node!\n\n" + e.getMessage(), "Node Error",
+					JOptionPane.ERROR_MESSAGE);
+		}
 		// TODO repaint compositor
-		
-		// TODO creating the wrong node (Target: compositor.Start -> Real: output.Debug)
+
+		// TODO creating the wrong node (Target: compositor.Start -> Real:
+		// output.Debug)
 	}
 
 	private class ResultListModel<T> implements ListModel<ListEntryDrawer<T>> {

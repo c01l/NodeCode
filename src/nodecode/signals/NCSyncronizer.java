@@ -9,6 +9,9 @@ import nodes.signals.SignalSyncronizer;
 
 public class NCSyncronizer extends SignalSyncronizer {
 
+	private static long syncIDCounter = 0;
+	private final long syncID;
+	
 	private SyncronizerDrawer drawer;
 	private SignalSyncronizer real = null;
 
@@ -16,12 +19,16 @@ public class NCSyncronizer extends SignalSyncronizer {
 		super(0, 0);
 		this.real = s;
 
+		this.syncID = syncIDCounter++;
+		
 		this.drawer = new SyncronizerDrawer(this);
 	}
 
 	public NCSyncronizer(int ins, int outs) {
 		super(ins, outs);
 
+		this.syncID = syncIDCounter++;
+		
 		this.drawer = new SyncronizerDrawer(this);
 	}
 
@@ -115,4 +122,8 @@ public class NCSyncronizer extends SignalSyncronizer {
 		return this.real.hashCode();
 	}
 
+	public long getID() {
+		return this.syncID;
+	}
+	
 }

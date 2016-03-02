@@ -9,9 +9,9 @@ import nodecode.InterfaceColorSet;
 import nodecode.Workspace;
 import nodecode.drawer.NodeDrawer;
 import nodecode.drawer.ObjectDrawer;
+import nodecode.node.Highlightable;
 import nodecode.node.NCHighlightInfo;
 import nodes.NodeInterface;
-import nodes.signals.Signal;
 import nodes.signals.SignalInputInterface;
 import nodes.signals.SignalOutputInterface;
 
@@ -69,43 +69,30 @@ public class SyncronizerDrawer extends ObjectDrawer {
 		Point pos = this.getPosition();
 
 		if (this.isHighlighted()) {
-			g.setColor(Color.BLACK.brighter());
+			g.setColor(Color.RED);
 		} else {
 			g.setColor(Color.BLACK);
 		}
 
+		// draw main body
 		g.fillArc(pos.x, pos.y, WIDTH, WIDTH, 0, 180);
 		g.fillRect(pos.x, pos.y + WIDTH / 2, WIDTH, this.getHeight() - WIDTH);
 		g.fillArc(pos.x, pos.y + this.getHeight() - WIDTH, WIDTH, WIDTH, 180, 180);
 
 		InterfaceColorSet colorSet = Workspace.getInterfaceColorSet();
-		Color signalColor = colorSet.getColor(Signal.class);
 
+		// draw interfaces
 		int i = 0;
 		for (NCHighlightInfo<SignalInputInterface> r : this.inputs) {
 			Point p = getInterfacePosition(i, true);
-
-			if (r.isHighlighted()) {
-				g.setColor(signalColor.brighter());
-			} else {
-				g.setColor(signalColor);
-			}
-
-			g.fillArc(p.x - NodeDrawer.INTERFACESIZE / 2, p.y - NodeDrawer.INTERFACESIZE / 2, NodeDrawer.INTERFACESIZE,
-					NodeDrawer.INTERFACESIZE, 90, 180);
+			NodeDrawer.paintInterface(g, p, true, r, colorSet);
 			++i;
 		}
 
 		i = 0;
 		for (NCHighlightInfo<SignalOutputInterface> r : this.outputs) {
 			Point p = getInterfacePosition(i, false);
-			if (r.isHighlighted()) {
-				g.setColor(signalColor.brighter());
-			} else {
-				g.setColor(signalColor);
-			}
-			g.fillArc(p.x - NodeDrawer.INTERFACESIZE / 2, p.y - NodeDrawer.INTERFACESIZE / 2, NodeDrawer.INTERFACESIZE,
-					NodeDrawer.INTERFACESIZE, 270, 180);
+			NodeDrawer.paintInterface(g, p, false, r, colorSet);
 			++i;
 		}
 	}
@@ -136,5 +123,35 @@ public class SyncronizerDrawer extends ObjectDrawer {
 
 	public NCSyncronizer getReal() {
 		return this.sync;
+	}
+
+	public Highlightable getInterface(int x, int y) {
+		Point pos = this.getPosition();
+
+		if (y < pos.y || y > pos.y + this.getHeight())
+			return null;
+
+		if (pos.x - NodeDrawer.INTERFACESIZE < x && x < pos.x) {
+			// maybe an input interface
+
+			for (int i = 0; i < this.inputs.size(); ++i) {
+				Point p = getInterfacePosition(i, true);
+
+				if (Math.abs(p.y - y) <= NodeDrawer.INTERFACESIZE / 2) {
+					return this.inputs.get(i);
+				}
+			}
+		} else if (pos.x + this.getWidth() < x && x < pos.x + this.getWidth() + NodeDrawer.INTERFACESIZE) {
+			// maybe an output interface
+
+			for (int i = 0; i < this.outputs.size(); ++i) {
+				Point p = getInterfacePosition(i, false);
+
+				if (Math.abs(p.y - y) <= NodeDrawer.INTERFACESIZE / 2) {
+					return this.outputs.get(i);
+				}
+			}
+		}
+		return null;
 	}
 }

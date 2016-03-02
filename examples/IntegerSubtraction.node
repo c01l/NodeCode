@@ -1,0 +1,34 @@
+<node>
+	<name>Integer Subtraction</name>
+	<path>math.IntegerSubtraction</path>
+	<dependencies>
+		<entry package="default">math.IntegerAddition</entry>
+		<entry package="default">math.IntegerNegation</entry>
+	</dependencies>
+	<description>This node subtracts an integer from another.</description>
+	<author userid="0">coil</author>
+	
+	<input type="java.lang.Integer" name="Base" default="0" />
+	<input type="java.lang.Integer" name="Minor" default="0" />
+	<output type="java.lang.Integer" name="Output" default="0" />
+
+	<code <!--implemented="jar:file:default.jar!/nodecode.math.IntegerSubtraction"-->>
+		<node id="0" type="math.IntegerNegation" />
+		<node id="1" type="math.IntegerAddition" />
+		
+		<dataflow>
+			<edge start="NODEIN:Base" end="1:Addend 1" />
+			<edge start="NODEIN:Minor" end="0:Input" />
+			<edge start="0:Output" end="1:Addend 2" />
+			<edge start="1:Sum" end="NODEOUT:Output" />
+		</dataflow>
+		<signalflow>
+			<edge start="NODEIN:SIGIN" end="0:SIGIN" />
+			<edge start="0:SIGOUT" end="1:SIGIN" />
+			<edge start="1:SIGOUT" end="NODEOUT:SIGOUT" />
+
+			<edge start="0:SIGEX" end="NODEOUT:SIGEX" />
+			<edge start="1:SIGEX" end="NODEOUT:SIGEX" />
+		</signalflow>
+	</code>
+</node>

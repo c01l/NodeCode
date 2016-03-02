@@ -8,7 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 
-import nodecode.creator.NodeCreator;
+import nodecode.NodeDescription;
 import nodecode.node.NCHighlightInfo;
 import nodecode.node.NCNode;
 import nodecode.signals.NCSyncronizer;
@@ -18,6 +18,7 @@ import nodes.NodeInputInterface;
 import nodes.NodeInterface;
 import nodes.NodeOutputInterface;
 import nodes.compositor.Compositor;
+import nodes.compositor.CompositorFinishedCallback;
 import nodes.signals.SignalInputInterface;
 import nodes.signals.SignalOutputInterface;
 import nodes.signals.SignalSyncronizer;
@@ -26,6 +27,7 @@ public class NCCompositor extends NCNode {
 
 	private Compositor real;
 	private String fullPath;
+	private NodeDescription description;
 
 	private LinkedList<NCHighlightInfo<NodeOutputInterface>> innerIns;
 	private LinkedList<NCHighlightInfo<NodeInputInterface>> innerOuts;
@@ -40,6 +42,7 @@ public class NCCompositor extends NCNode {
 	public NCCompositor(String name, String path) {
 		super(name);
 		this.fullPath = path + "." + name;
+		this.description = null;
 
 		this.real = new Compositor();
 		this.drawer = new CompositorDrawer(this);
@@ -79,8 +82,8 @@ public class NCCompositor extends NCNode {
 		return null;
 	}
 
-	public HashMap<String, NCHighlightInfo<NodeOutputInterface>> getInnerNCInputs() {
-		HashMap<String, NCHighlightInfo<NodeOutputInterface>> ret = new LinkedHashMap<>();
+	public LinkedHashMap<String, NCHighlightInfo<NodeOutputInterface>> getInnerNCInputs() {
+		LinkedHashMap<String, NCHighlightInfo<NodeOutputInterface>> ret = new LinkedHashMap<>();
 		HashMap<String, NodeOutputInterface> inputs = this.real.getInnerInputs();
 
 		for (NCHighlightInfo<NodeOutputInterface> hi : this.innerIns) {
@@ -100,8 +103,8 @@ public class NCCompositor extends NCNode {
 		return ret;
 	}
 
-	public HashMap<String, NCHighlightInfo<NodeInputInterface>> getInnerNCOutputs() {
-		HashMap<String, NCHighlightInfo<NodeInputInterface>> ret = new LinkedHashMap<>();
+	public LinkedHashMap<String, NCHighlightInfo<NodeInputInterface>> getInnerNCOutputs() {
+		LinkedHashMap<String, NCHighlightInfo<NodeInputInterface>> ret = new LinkedHashMap<>();
 		HashMap<String, NodeInputInterface> outputs = this.real.getInnerOutputs();
 
 		for (NCHighlightInfo<NodeInputInterface> hi : this.innerOuts) {
@@ -121,9 +124,18 @@ public class NCCompositor extends NCNode {
 		return ret;
 	}
 
+	/**
+	 * Returns a new NCCompositorCreator for this NCCompositor
+	 * 
+	 * @return a new NCCompositorCreator if everything is fine;
+	 *         <code>null</code> if the description is missing
+	 */
 	@Override
-	public NodeCreator getCreator() {
-		return new NCCompositorCreator(this.fullPath, this); // CHECKME
+	public NCCompositorCreator getCreator() {
+		if (this.description == null)
+			return null; // CHECKME exception?
+
+		return NCCompositorCreator.newInstance(this, this.fullPath, this.description);
 	}
 
 	public List<NCNode> getNCNodes() {
@@ -221,13 +233,57 @@ public class NCCompositor extends NCNode {
 		return this.innerSigIn;
 	}
 
+	public SignalInputInterface getSignalEnd() {
+		return this.real.getSignalEnd();
+	}
+
+	public SignalInputInterface getExceptionEnd() {
+		return this.real.getInnerExceptionReciever();
+	}
+
+	public SignalOutputInterface getSignalStart() {
+		return this.real.getSignalStart();
+	}
+
 	public void start() {
 		this.real.start();
 	}
 
 	public void addEdge(NCNode in1, String name1, NCNode in2, String name2) {
 		this.real.addEdge(in1, name1, in2, name2);
-		// TODO repaint
 	}
 
+	public void addEdge(NodeOutputInterface start, NodeInputInterface end) {
+		// TODO check if start and end are in this compositor
+
+		end.setConnection(start);
+	}
+
+	public void setEndCallback(CompositorFinishedCallback finishCallback) {
+		this.real.setEndCallback(finishCallback);
+	}
+
+	@Override
+	public void registerInput(String name, NodeInputInterface i) {
+		this.real.registerInput(name, i);
+	}
+
+	@Override
+	protected void registerOutput(String name, NodeOutputInterface o) {
+		this.real.registerOutput(name, o);
+	}
+
+	@Override
+	protected NodeInputInterface removeInput(String name) {
+		return this.real.removeInput(name);
+	}
+
+	@Override
+	protected NodeOutputInterface removeOutput(String name) {
+		return this.real.removeOutput(name);
+	}
+
+	public void setDescription(NodeDescription desc) {
+		this.description = desc;
+	}
 }

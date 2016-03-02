@@ -1,6 +1,6 @@
 package nodecode.node;
 
-public class NCHighlightInfo<T> {
+public class NCHighlightInfo<T> implements Highlightable {
 
 	private T i;
 
@@ -10,10 +10,12 @@ public class NCHighlightInfo<T> {
 		this.i = i;
 	}
 
+	@Override
 	public void setHighlighted(boolean isHighlighted) {
 		this.isHighlighted = isHighlighted;
 	}
 
+	@Override
 	public boolean isHighlighted() {
 		return this.isHighlighted;
 	}

@@ -52,8 +52,8 @@ public abstract class NodeDrawer extends ObjectDrawer {
 
 	@Override
 	public void paint(Graphics2D g) {
-		double width = this.getWidth();
-		double height = this.getHeight();
+		int width = this.getWidth();
+		int height = this.getHeight();
 
 		Point pos = this.getPosition();
 
@@ -68,6 +68,10 @@ public abstract class NodeDrawer extends ObjectDrawer {
 		if (width < titleWidth + 2 * HEADERMARGIN)
 			this.width = (int) (titleWidth + 2 * HEADERMARGIN);
 
+		// clear rect
+		g.clearRect(pos.x, pos.y, width, height);
+
+		// draw border + title
 		g.setColor(this.isHighlighted() ? Color.RED : Color.BLACK);
 
 		g.drawRect(pos.x, pos.y, (int) width, HEADERHEIGHT);
@@ -75,8 +79,10 @@ public abstract class NodeDrawer extends ObjectDrawer {
 				(int) (pos.y + HEADERHEIGHT / 2d + titleHeight / 2d));
 		g.drawRect(pos.x, pos.y + HEADERHEIGHT, (int) width, (int) height - HEADERHEIGHT);
 
+		// draw interfaces
 		this.paintInterfaces(g);
 
+		// draw content
 		int dx = pos.x + CONTENTMARGIN;
 		int dy = pos.y + HEADERHEIGHT + CONTENTMARGIN;
 		g.translate(dx, dy);
@@ -95,41 +101,53 @@ public abstract class NodeDrawer extends ObjectDrawer {
 			for (NCHighlightInfo<NodeInputInterface> in : this.n.getNCInputs().values()) {
 				NodeInputInterface input = in.getReal();
 
-				Color col = colorSet.getColor(input.getType());
-				g.setColor(in.isHighlighted() ? col.brighter() : col);
-
 				Point p = getInterfacePosition(input);
 
-				g.fillArc(p.x - INTERFACESIZE / 2, p.y - INTERFACESIZE / 2, INTERFACESIZE, INTERFACESIZE, 90, 180);
+				paintInterface(g, p, true, in, colorSet);
 			}
 
 			// output
 			for (NCHighlightInfo<NodeOutputInterface> out : this.n.getNCOutputs().values()) {
 				NodeOutputInterface output = out.getReal();
-
-				Color col = colorSet.getColor(output.getType());
-				g.setColor(out.isHighlighted() ? col.brighter() : col);
-
 				Point p = getInterfacePosition(output);
 
-				g.fillArc(p.x - INTERFACESIZE / 2, p.y - INTERFACESIZE / 2, INTERFACESIZE, INTERFACESIZE, 270, 180);
+				paintInterface(g, p, false, out, colorSet);
 			}
 		}
 
 		if (Workspace.areSignalsShown()) {
-			SignalInputInterface input = this.n.getSignalInput();
-			Point inPos = getInterfacePosition(input);
+			NCHighlightInfo<SignalInputInterface> input = this.n.getNCSignalInput();
+			Point inPos = getInterfacePosition(input.getReal());
 
-			g.setColor(colorSet.getColor(input.getType()));
-			g.fillArc(inPos.x - INTERFACESIZE / 2, inPos.y - INTERFACESIZE / 2, INTERFACESIZE, INTERFACESIZE, 90, 180);
+			paintInterface(g, inPos, true, input, colorSet);
 
-			SignalOutputInterface output = this.n.getSignalOutput();
-			Point outPos = getInterfacePosition(output);
+			NCHighlightInfo<SignalOutputInterface> output = this.n.getNCSignalOutput();
+			Point outPos = getInterfacePosition(output.getReal());
 
-			g.setColor(colorSet.getColor(output.getType()));
-			g.fillArc(outPos.x - INTERFACESIZE / 2, outPos.y - INTERFACESIZE / 2, INTERFACESIZE, INTERFACESIZE, 270,
-					180);
+			paintInterface(g, outPos, false, output, colorSet);
+
+			NCHighlightInfo<SignalOutputInterface> exOutput = this.n.getNCExceptionOutput();
+			Point exOutPos = getInterfacePosition(exOutput.getReal());
+
+			paintInterface(g, exOutPos, false, exOutput, colorSet);
 		}
+	}
+
+	public static void paintInterface(Graphics2D g, Point pos, boolean input,
+			NCHighlightInfo<? extends NodeInterface> hi, InterfaceColorSet colorSet) {
+
+		if (hi.isHighlighted()) {
+			g.setColor(colorSet.getInterfaceHighlightColor());
+		} else {
+			g.setColor(colorSet.getColor(hi.getReal().getType()));
+		}
+		g.fillArc(pos.x - INTERFACESIZE / 2, pos.y - INTERFACESIZE / 2, INTERFACESIZE, INTERFACESIZE, input ? 90 : 270,
+				180);
+		// CHECKME interface outline?
+		// g.setColor(Color.BLACK);
+		// g.drawArc(pos.x - INTERFACESIZE / 2, pos.y - INTERFACESIZE / 2,
+		// INTERFACESIZE, INTERFACESIZE, input ? 90 : 270,
+		// 180);
 	}
 
 	protected abstract void paintContent(Graphics2D g);
@@ -174,7 +192,7 @@ public abstract class NodeDrawer extends ObjectDrawer {
 
 	public NCHighlightInfo<? extends NodeInterface> getInterface(int x, int y) {
 		Point pos = this.getPosition();
-		
+
 		if (y < pos.y || y > pos.y + this.getHeight())
 			return null;
 
@@ -197,7 +215,7 @@ public abstract class NodeDrawer extends ObjectDrawer {
 				++i;
 			}
 
-		} else if (pos.x <= x && x <= pos.x + INTERFACESIZE / 2) {
+		} else if (pos.x + this.getWidth() <= x && x <= pos.x + this.getWidth() + INTERFACESIZE / 2) {
 			// signal output
 			if (Math.abs(pos.y + SIGNALINTERFACEY - y) <= INTERFACESIZE) {
 				return this.n.getNCSignalOutput();

@@ -11,7 +11,6 @@ public class MainStart {
 	public static void main(String[] args) {
 		// testing
 		
-		
 		// loading
 		
 		// TODO preloading default classes

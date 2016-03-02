@@ -1,9 +1,9 @@
 package nodecode.compositor;
 
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 
 import nodecode.EdgePainter;
@@ -27,16 +27,12 @@ public class CompositorDrawer extends NodeDrawer {
 
 	private NCCompositor comp;
 
-	public CompositorDrawer(NCNode comp) {
+	public CompositorDrawer(NCCompositor comp) {
 		this(comp, DEFAULT_SPAWN_X, DEFAULT_SPAWN_Y);
 	}
 
-	public CompositorDrawer(NCNode comp, int x, int y) {
+	public CompositorDrawer(NCCompositor comp, int x, int y) {
 		super(comp, x, y);
-
-		if (!(comp instanceof NCCompositor)) {
-			throw new IllegalArgumentException("A CompositorDrawer can only draw NCCompositors!");
-		}
 
 		this.comp = (NCCompositor) comp;
 	}
@@ -55,13 +51,14 @@ public class CompositorDrawer extends NodeDrawer {
 				NodeInputInterface nii = hi.getReal();
 				NodeOutputInterface noi = nii.getSource();
 
-				NodeDrawer drawer = this.comp.getNode(noi).getDrawerInstance();
+				if (noi != null) {
+					NodeDrawer drawer = this.comp.getNode(noi).getDrawerInstance();
 
-				Point p1 = getInnerInterfacePosition(nii);
-				Point p2 = drawer.getInterfacePosition(noi);
+					Point p1 = getInnerInterfacePosition(nii);
+					Point p2 = drawer.getInterfacePosition(noi);
 
-				EdgePainter.paint(g, p1, p2);
-
+					EdgePainter.paint(g, p1, p2);
+				}
 			}
 
 			for (NCNode n : this.comp.getNCNodes()) {
@@ -71,15 +68,18 @@ public class CompositorDrawer extends NodeDrawer {
 					NodeInputInterface ni = hi.getReal();
 					NodeOutputInterface no = ni.getSource();
 
-					NodeDrawer drawer2 = this.comp.getNode(no).getDrawerInstance();
+					if (no != null) {
+						NodeDrawer drawer2 = this.comp.getNode(no).getDrawerInstance();
 
-					Point p1 = drawer.getInterfacePosition(ni);
-					Point p2 = drawer2.getInterfacePosition(no);
+						Point p1 = drawer.getInterfacePosition(ni);
+						Point p2 = drawer2.getInterfacePosition(no);
 
-					EdgePainter.paint(g, p1, p2);
+						EdgePainter.paint(g, p1, p2);
+					}
 				}
 			}
 		}
+
 		if (drawSignals) {
 			// draw signal start
 			SignalOutputInterface startInterface = this.comp.getNCSignalStart().getReal();
@@ -102,7 +102,7 @@ public class CompositorDrawer extends NodeDrawer {
 				}
 
 				// exception
-				SignalOutputInterface exInterface = n.getSignalOutput();
+				SignalOutputInterface exInterface = n.getExceptionOutput();
 				SignalInputInterface exTarget = exInterface.getTarget();
 				if (exTarget != null) {
 					Point p1 = getInCompositorInterfacePosition(exInterface);
@@ -132,17 +132,22 @@ public class CompositorDrawer extends NodeDrawer {
 		// draw inner interfaces
 		if (drawData) {
 			for (Entry<String, NCHighlightInfo<NodeInputInterface>> e : this.comp.getInnerNCOutputs().entrySet()) {
-				paintInnerInterface(g, e.getValue(), colorSet);
+				NodeDrawer.paintInterface(g, getInnerInterfacePosition(e.getValue().getReal()), false, e.getValue(),
+						colorSet);
 			}
 
 			for (Entry<String, NCHighlightInfo<NodeOutputInterface>> e : this.comp.getInnerNCInputs().entrySet()) {
-				paintInnerInterface(g, e.getValue(), colorSet);
+				NodeDrawer.paintInterface(g, getInnerInterfacePosition(e.getValue().getReal()), true, e.getValue(),
+						colorSet);
 			}
 		}
 		if (drawSignals) {
-			paintInnerInterface(g, this.comp.getNCSignalStart(), colorSet);
-			paintInnerInterface(g, this.comp.getNCSignalEnd(), colorSet);
-			paintInnerInterface(g, this.comp.getNCExceptionEnd(), colorSet);
+			NodeDrawer.paintInterface(g, getInnerInterfacePosition(this.comp.getSignalStart()), false,
+					this.comp.getNCSignalStart(), colorSet);
+			NodeDrawer.paintInterface(g, getInnerInterfacePosition(this.comp.getSignalEnd()), true,
+					this.comp.getNCSignalEnd(), colorSet);
+			NodeDrawer.paintInterface(g, getInnerInterfacePosition(this.comp.getExceptionEnd()), true,
+					this.comp.getNCExceptionEnd(), colorSet);
 		}
 
 		// draw inner nodes
@@ -154,28 +159,6 @@ public class CompositorDrawer extends NodeDrawer {
 		for (NCNode n : this.comp.getNCNodes()) {
 			n.getDrawerInstance().paint(g);
 		}
-	}
-
-	private void paintInnerInterface(Graphics2D g, NCHighlightInfo<? extends NodeInterface> hi,
-			InterfaceColorSet colorSet) {
-		NodeInterface i = hi.getReal();
-		Color c = colorSet.getColor(i.getType());
-
-		if (hi.isHighlighted()) {
-			g.setColor(c.brighter());
-		} else {
-			g.setColor(c);
-		}
-
-		Point p = getInnerInterfacePosition(i);
-
-		int angle = 270;
-		if (i instanceof NodeInputInterface || i instanceof SignalInputInterface) {
-			angle -= 180;
-		}
-
-		g.fillArc(p.x - NodeDrawer.INTERFACESIZE / 2, p.y - NodeDrawer.INTERFACESIZE / 2, NodeDrawer.INTERFACESIZE,
-				NodeDrawer.INTERFACESIZE, angle, 180);
 
 	}
 
@@ -216,6 +199,47 @@ public class CompositorDrawer extends NodeDrawer {
 
 	@Override
 	public Highlightable getHighlightable(int x, int y) {
+		// inner interfaces
+		if (0 < x && x < INTERFACESIZE / 2) {
+			// signals
+			Point p = getInnerInterfacePosition(this.comp.getSignalStart());
+			if (Math.abs(p.y - y) < INTERFACESIZE / 2) {
+				return this.comp.getNCSignalStart();
+			}
+
+			// data
+			LinkedHashMap<String, NCHighlightInfo<NodeOutputInterface>> inputs = this.comp.getInnerNCInputs();
+			int i = 0;
+			for (NCHighlightInfo<NodeOutputInterface> hi : inputs.values()) {
+				if (Math.abs(y - this.getInnerInterfaceY(i)) < INTERFACESIZE / 2) {
+					return hi;
+				}
+				++i;
+			}
+		} else if (this.getContentWidth() - INTERFACESIZE / 2 < x && x < this.getContentWidth()) {
+			// signals
+			Point p = getInnerInterfacePosition(this.comp.getSignalEnd());
+			if (Math.abs(p.y - y) < INTERFACESIZE / 2) {
+				return this.comp.getNCSignalEnd();
+			}
+
+			Point p2 = getInnerInterfacePosition(this.comp.getExceptionEnd());
+			if (Math.abs(p2.y - y) < INTERFACESIZE / 2) {
+				return this.comp.getNCExceptionEnd();
+			}
+
+			// data
+			LinkedHashMap<String, NCHighlightInfo<NodeInputInterface>> outputs = this.comp.getInnerNCOutputs();
+			int i = 0;
+			for (NCHighlightInfo<NodeInputInterface> hi : outputs.values()) {
+				if (Math.abs(y - this.getInnerInterfaceY(i)) < INTERFACESIZE / 2) {
+					return hi;
+				}
+				++i;
+			}
+		}
+
+		// inner nodes
 		for (NCNode n : this.comp.getNCNodes()) {
 			NodeDrawer drawer = n.getDrawerInstance();
 			Point p = drawer.getPosition();
@@ -224,6 +248,11 @@ public class CompositorDrawer extends NodeDrawer {
 				return drawer.getHighlightable(x - p.x - NodeDrawer.CONTENTMARGIN,
 						y - p.y - NodeDrawer.CONTENTMARGIN - NodeDrawer.HEADERHEIGHT);
 			}
+
+			Highlightable ret = drawer.getInterface(x, y);
+			if (ret != null)
+				return ret;
+
 		}
 		for (NCSyncronizer s : this.comp.getNCSyncronizers()) {
 			SyncronizerDrawer drawer = s.getDrawerInstance();
@@ -232,6 +261,10 @@ public class CompositorDrawer extends NodeDrawer {
 			if (p.x < x && x < p.x + drawer.getWidth() && p.y < y && y < p.y + drawer.getHeight()) {
 				return drawer;
 			}
+
+			Highlightable ret = drawer.getInterface(x, y);
+			if (ret != null)
+				return ret;
 		}
 		return null;
 	}
